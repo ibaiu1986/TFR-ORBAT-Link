@@ -699,9 +699,13 @@ class TFR_ORBATLinkService
 
 		vector origin = controlledEntity.GetOrigin();
 
+		// Contrato externo:
+		// pos_x = eje X de mundo.
+		// pos_y = eje 2D de mapa, que en Enfusion corresponde al eje Z.
+		// pos_z = altura/elevacion, que en Enfusion corresponde al eje Y.
 		stats.m_fPosX = origin[0];
-		stats.m_fPosY = origin[1];
-		stats.m_fPosZ = origin[2];
+		stats.m_fPosY = origin[2];
+		stats.m_fPosZ = origin[1];
 
 		// Legacy 2D map coordinates.
 		stats.m_iEjex = Math.Round(origin[0]);
