@@ -9,9 +9,32 @@ The current payload/update flow is partially working after restoring the combine
 Working or apparently working:
 
 - Payload is being sent.
-- Most statistics appear to refresh on the web.
-- The legacy dossier fields are present in the player payload.
-- The new ORBAT fields are present in the player payload.
+- New player ORBAT fields are being collected when a player is registered and spawned.
+- Some counters are being collected in the running server, including shots, distance and vehicle destruction.
+
+## Latest server log diagnosis
+
+The latest uploaded server log shows two different states:
+
+1. Before player registration, the periodic sender posts an empty payload with `players: []` and the web rejects it with HTTP 400.
+2. After player registration and spawn, the payload contains the player, but the web returns HTTP 500 WordPress critical error.
+
+Important evidence from the log:
+
+- The running server payload still includes fields that were removed from the current GitHub version:
+  - `scenario_name`
+  - `friendly_fire`
+  - `Ejex`
+  - `Ejey`
+  - `Dir`
+- Therefore the server test was not running the latest corrected script set from the repository, or an old local/workshop copy is still being loaded.
+- The current GitHub `TFR_ORBATLinkService.c` no longer writes `scenario_name` to the root payload.
+- The current GitHub `TFR_ORBATLinkPlayerStats.c` no longer writes `friendly_fire`, `Ejex`, `Ejey` or `Dir` to the player payload.
+
+Scenario note:
+
+- The log resolves `scenario_id` as `{6FDBF9AB994098D9}Missions/World_ORbat.conf` and derives `scenario_name` as `World ORbat`.
+- The web screenshot showing another scenario is probably stale data from the last successful stored match because the new POST requests are failing with HTTP 500 and are not being saved.
 
 ## Current failures reported from server test
 
@@ -86,3 +109,4 @@ placed_explosives_detonated
 - No deleting working code.
 - Scripts must be delivered complete with path.
 - Fix only the failing paths: tourniquet, saline, and kill/death/KD.
+- First verify that the server is actually loading the current GitHub scripts before changing medical or kill hooks.
