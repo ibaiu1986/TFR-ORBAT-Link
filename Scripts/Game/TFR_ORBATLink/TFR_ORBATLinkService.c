@@ -1099,8 +1099,6 @@ class TFR_ORBATLinkService
 
 		payload += JsonString("token", m_Config.m_sBearerToken, true);
 		payload += JsonString("scenario_id", m_Config.m_sScenarioId, true);
-		payload += JsonString("scenario_name", m_Config.m_sScenarioName, true);
-
 		payload += JsonString("session_id", m_Config.session_id, true);
 		payload += JsonInt("preset_id", m_Config.preset_id, true);
 		payload += JsonString("map_name", m_Config.m_sMapName, true);
