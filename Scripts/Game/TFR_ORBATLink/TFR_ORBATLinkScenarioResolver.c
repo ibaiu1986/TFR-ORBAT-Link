@@ -6,9 +6,9 @@
 // No toca medicina.
 // No toca acciones.
 // No usa SCR_MissionHeader.m_sName porque en algunas misiones devuelve "<Insert world name>".
-// scenario_name se deriva de scenario_id.
 //
-// Ejemplo:
+// El backend/web esta usando scenario_id como texto visible de escenario.
+// Por eso scenario_id debe enviarse limpio para visualizacion:
 // {6FDBF9AB994098D9}Missions/World_ORbat.conf
 // -> World ORbat
 
@@ -16,35 +16,45 @@ class TFR_ORBATLinkScenarioResolver
 {
 	static string ResolveScenarioId()
 	{
-		ChimeraGame game = ChimeraGame.Cast(GetGame());
+		string scenarioName = ResolveScenarioNameFromHeaderResource();
 
-		if (!game)
-			return "unknown";
+		if (scenarioName.IsEmpty())
+			scenarioName = "TFR ORBAT";
 
-		MissionHeader missionHeader = game.GetMissionHeader();
+		Print("[TFR_ORBATLink] ScenarioResolver: scenario_id visible=" + scenarioName, LogLevel.NORMAL);
 
-		if (!missionHeader)
-			return "unknown";
-
-		ResourceName headerResourceName = missionHeader.GetHeaderResourceName();
-		string scenarioId = headerResourceName;
-
-		if (scenarioId.IsEmpty())
-			return "unknown";
-
-		Print("[TFR_ORBATLink] ScenarioResolver: scenario_id resuelto=" + scenarioId, LogLevel.NORMAL);
-
-		return scenarioId;
+		return scenarioName;
 	}
 
 	static string ResolveScenarioName()
 	{
-		string scenarioId = ResolveScenarioId();
+		string scenarioName = ResolveScenarioNameFromHeaderResource();
 
-		if (scenarioId.IsEmpty() || scenarioId == "unknown")
+		if (scenarioName.IsEmpty())
+			scenarioName = "TFR ORBAT";
+
+		Print("[TFR_ORBATLink] ScenarioResolver: scenario_name derivado=" + scenarioName, LogLevel.NORMAL);
+
+		return scenarioName;
+	}
+
+	protected static string ResolveScenarioNameFromHeaderResource()
+	{
+		ChimeraGame game = ChimeraGame.Cast(GetGame());
+
+		if (!game)
 			return "TFR ORBAT";
 
-		string scenarioName = scenarioId;
+		MissionHeader missionHeader = game.GetMissionHeader();
+
+		if (!missionHeader)
+			return "TFR ORBAT";
+
+		ResourceName headerResourceName = missionHeader.GetHeaderResourceName();
+		string scenarioName = headerResourceName;
+
+		if (scenarioName.IsEmpty())
+			return "TFR ORBAT";
 
 		int idx = scenarioName.IndexOf("Missions/");
 
@@ -68,8 +78,6 @@ class TFR_ORBATLinkScenarioResolver
 
 		if (scenarioName.Contains("Insert world name"))
 			return "TFR ORBAT";
-
-		Print("[TFR_ORBATLink] ScenarioResolver: scenario_name derivado=" + scenarioName, LogLevel.NORMAL);
 
 		return scenarioName;
 	}
