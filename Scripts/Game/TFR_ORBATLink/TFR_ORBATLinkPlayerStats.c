@@ -38,8 +38,18 @@ class TFR_ORBATLinkPlayerStats
 
 	int m_iPlacedExplosivesDetonated;
 
-	// GPS / posicion para payload.
-	// Se actualiza desde TFR_ORBATLinkService justo antes de enviar.
+	// Campos del contrato ORBAT nuevo.
+	string m_sFaction;
+	string m_sSquad;
+	string m_sRole;
+	float m_fPosX;
+	float m_fPosY;
+	float m_fPosZ;
+	float m_fHeading;
+	float m_fSpeedKmh;
+	bool m_bIsAlive;
+
+	// GPS / posicion legacy. Se conserva por compatibilidad interna/debug.
 	int m_iEjex;
 	int m_iEjey;
 	int m_iDir;
@@ -83,6 +93,16 @@ class TFR_ORBATLinkPlayerStats
 		m_iVehiclesDestroyedStatic = 0;
 
 		m_iPlacedExplosivesDetonated = 0;
+
+		m_sFaction = "unknown";
+		m_sSquad = "";
+		m_sRole = "";
+		m_fPosX = 0.0;
+		m_fPosY = 0.0;
+		m_fPosZ = 0.0;
+		m_fHeading = 0.0;
+		m_fSpeedKmh = 0.0;
+		m_bIsAlive = true;
 
 		m_iEjex = 0;
 		m_iEjey = 0;
@@ -136,8 +156,7 @@ class TFR_ORBATLinkPlayerStats
 
 		m_iPlacedExplosivesDetonated = 0;
 
-		// No se resetean m_iEjex, m_iEjey ni m_iDir.
-		// Se recalculan antes de cada payload.
+		// No se resetean identidad ni posicion.
 	}
 
 	bool HasAnyStats()
@@ -224,43 +243,51 @@ class TFR_ORBATLinkPlayerStats
 		return result;
 	}
 
+	string JsonFloatField(string key, float value, bool comma = true)
+	{
+		string result = "\"" + key + "\":" + value.ToString();
+
+		if (comma)
+			result += ",";
+
+		return result;
+	}
+
+	string JsonBoolField(string key, bool value, bool comma = true)
+	{
+		string boolText = "false";
+
+		if (value)
+			boolText = "true";
+
+		string result = "\"" + key + "\":" + boolText;
+
+		if (comma)
+			result += ",";
+
+		return result;
+	}
+
 	string ToPlayerJson()
 	{
+		string steamId = m_sSteamId64;
+
+		if (steamId.IsEmpty())
+			steamId = m_sBohemiaUid;
+
 		string json = "{";
 
-		json += JsonStringField("steamid", m_sSteamId64);
-		json += JsonStringField("bohemia_uid", m_sBohemiaUid);
-
-		json += JsonIntField("missions_played", m_iMissionsPlayed);
-
-		json += JsonIntField("kills", m_iKills);
-		json += JsonIntField("deaths", m_iDeaths);
-		json += JsonIntField("shots_fired", m_iShotsFired);
-		json += JsonIntField("shots_hit", m_iShotsHit);
-		json += JsonIntField("playtime_minutes", GetPeriodMinutes());
-
-		json += JsonIntField("medical_bandages_applied", m_iMedicalBandagesApplied);
-		json += JsonIntField("medical_tourniquets_applied", m_iMedicalTourniquetsApplied);
-		json += JsonIntField("medical_saline_applied", m_iMedicalSalineApplied);
-		json += JsonIntField("medical_morphine_applied", m_iMedicalMorphineApplied);
-		json += JsonIntField("medical_epinephrine_applied", m_iMedicalEpinephrineApplied);
-
-		json += JsonIntField("distance_walked_m", m_iDistanceWalkedM);
-		json += JsonIntField("distance_in_vehicle_m", m_iDistanceInVehicleM);
-		json += JsonIntField("distance_total_m", GetDistanceTotalM());
-
-		json += JsonIntField("vehicles_destroyed_total", m_iVehiclesDestroyedTotal);
-		json += JsonIntField("vehicles_destroyed_light", m_iVehiclesDestroyedLight);
-		json += JsonIntField("vehicles_destroyed_heavy", m_iVehiclesDestroyedHeavy);
-		json += JsonIntField("vehicles_destroyed_air", m_iVehiclesDestroyedAir);
-		json += JsonIntField("vehicles_destroyed_sea", m_iVehiclesDestroyedSea);
-		json += JsonIntField("vehicles_destroyed_static", m_iVehiclesDestroyedStatic);
-
-		json += JsonIntField("placed_explosives_detonated", m_iPlacedExplosivesDetonated);
-
-		json += JsonIntField("Ejex", m_iEjex);
-		json += JsonIntField("Ejey", m_iEjey);
-		json += JsonIntField("Dir", m_iDir, false);
+		json += JsonStringField("steamid", steamId);
+		json += JsonStringField("name", m_sPlayerName);
+		json += JsonStringField("faction", m_sFaction);
+		json += JsonStringField("squad", m_sSquad);
+		json += JsonStringField("role", m_sRole);
+		json += JsonFloatField("pos_x", m_fPosX);
+		json += JsonFloatField("pos_y", m_fPosY);
+		json += JsonFloatField("pos_z", m_fPosZ);
+		json += JsonFloatField("heading", m_fHeading);
+		json += JsonFloatField("speed_kmh", m_fSpeedKmh);
+		json += JsonBoolField("is_alive", m_bIsAlive, false);
 
 		json += "}";
 
