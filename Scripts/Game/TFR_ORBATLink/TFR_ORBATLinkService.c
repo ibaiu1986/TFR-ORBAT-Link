@@ -699,15 +699,10 @@ class TFR_ORBATLinkService
 
 		vector origin = controlledEntity.GetOrigin();
 
-		// Contrato externo:
-		// pos_x = eje X de mundo.
-		// pos_y = eje 2D de mapa, que en Enfusion corresponde al eje Z.
-		// pos_z = altura/elevacion, que en Enfusion corresponde al eje Y.
 		stats.m_fPosX = origin[0];
 		stats.m_fPosY = origin[2];
 		stats.m_fPosZ = origin[1];
 
-		// Legacy 2D map coordinates.
 		stats.m_iEjex = Math.Round(origin[0]);
 		stats.m_iEjey = Math.Round(origin[2]);
 
@@ -824,7 +819,6 @@ class TFR_ORBATLinkService
 
 	protected string ResolvePlayerSquad(int playerId)
 	{
-		// Pendiente de conectar con el sistema real de grupos/ORBAT.
 		return "";
 	}
 
@@ -1087,15 +1081,15 @@ class TFR_ORBATLinkService
 		if (payload.IsEmpty())
 			return;
 
-		SendPayload(payload);
+		SendPayload(payload, resetAfterSend);
+	}
 
-		if (resetAfterSend)
+	protected void ResetAllPeriods()
+	{
+		foreach (int playerId, TFR_ORBATLinkPlayerStats stats : m_mPlayerStats)
 		{
-			foreach (int playerId, TFR_ORBATLinkPlayerStats stats : m_mPlayerStats)
-			{
-				if (stats)
-					stats.ResetPeriod();
-			}
+			if (stats)
+				stats.ResetPeriod();
 		}
 	}
 
@@ -1103,9 +1097,14 @@ class TFR_ORBATLinkService
 	{
 		string payload = "{";
 
+		payload += JsonString("token", m_Config.m_sBearerToken, true);
+		payload += JsonString("scenario_id", m_Config.m_sScenarioId, true);
+		payload += JsonString("scenario_name", m_Config.m_sScenarioName, true);
+
 		payload += JsonString("session_id", m_Config.session_id, true);
 		payload += JsonInt("preset_id", m_Config.preset_id, true);
 		payload += JsonString("map_name", m_Config.m_sMapName, true);
+
 		payload += "\"players\":[";
 
 		bool first = true;
@@ -1132,7 +1131,7 @@ class TFR_ORBATLinkService
 		return payload;
 	}
 
-	protected void SendPayload(string payload)
+	protected void SendPayload(string payload, bool resetAfterSuccess = false)
 	{
 		if (payload.IsEmpty())
 			return;
@@ -1143,7 +1142,7 @@ class TFR_ORBATLinkService
 			return;
 		}
 
-		ref TFR_ORBATLinkRestCallback callback = new TFR_ORBATLinkRestCallback(this);
+		ref TFR_ORBATLinkRestCallback callback = new TFR_ORBATLinkRestCallback(this, resetAfterSuccess);
 		m_aCallbacks.Insert(callback);
 
 		int requestId = m_RestContext.POST(callback, m_Config.m_sRoute, payload);
@@ -1163,6 +1162,7 @@ class TFR_ORBATLinkService
 		int httpCode = callback.GetHttpCode();
 		int restResult = callback.GetRestResult();
 		string data = callback.GetData();
+		bool resetAfterSuccess = callback.ShouldResetAfterSuccess();
 
 		Print("[TFR_ORBATLink] REST SUCCESS. http=" + httpCode.ToString() + " rest=" + restResult.ToString(), LogLevel.NORMAL);
 
@@ -1170,6 +1170,9 @@ class TFR_ORBATLinkService
 			Print("[TFR_ORBATLink] Respuesta: " + data, LogLevel.NORMAL);
 
 		m_aCallbacks.RemoveItem(callback);
+
+		if (resetAfterSuccess)
+			ResetAllPeriods();
 	}
 
 	void OnRestError(TFR_ORBATLinkRestCallback callback)
