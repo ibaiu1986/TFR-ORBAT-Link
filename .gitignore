@@ -1,0 +1,16 @@
+# Arma Reforger / Workbench local files
+*.bak
+*.tmp
+*.log
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Local profile/config files
+profile/config.json
