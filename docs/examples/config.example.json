@@ -1,4 +1,16 @@
 {
+  "m_sBaseUrl": "https://tfr.gure.party",
+  "m_sRoute": "/wp-json/clan/v1/telemetry/push",
+  "m_sBearerToken": "",
   "session_id": "example-session-id",
-  "preset_id": 0
+  "preset_id": 0,
+  "m_sMapName": "everon",
+  "m_iPreformedMapId": 0,
+  "m_bDebug": false,
+  "m_bSendOnDisconnect": true,
+  "m_bSendOnGameEnd": true,
+  "m_bSendTestOnRegister": false,
+  "m_iSendTestDelayMs": 5000,
+  "m_bSendPeriodic": true,
+  "m_iSendIntervalMinutes": 5
 }
