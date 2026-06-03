@@ -7,6 +7,8 @@
 // - No toca PerformAction.
 // - No bloquea acciones medicas.
 // - Cuenta consumibles cuando el efecto ya se ha aplicado.
+// - Salino se cuenta desde SCR_ConsumableSalineBag.ApplyEffect porque esa clase
+//   sobrescribe ApplyEffect y no llama al ApplyEffect base de SCR_ConsumableEffectHealthItems.
 // - Torniquete NO se cuenta desde SCR_ConsumableTourniquet directamente.
 // - Torniquete se cuenta desde SCR_TourniquetStorageComponent.OnAddedToSlot,
 //   que confirma que el torniquete ha quedado colocado.
@@ -47,6 +49,10 @@ modded class SCR_ConsumableEffectHealthItems
 			), LogLevel.WARNING);
 			return;
 		}
+
+		// El salino tiene hook propio porque SCR_ConsumableSalineBag sobrescribe ApplyEffect.
+		if (medicalCode == "SALINE")
+			return;
 
 		// El torniquete se cuenta por SCR_TourniquetStorageComponent.OnAddedToSlot.
 		if (medicalCode == "TOURNIQUET")
@@ -203,6 +209,51 @@ modded class SCR_ConsumableEffectHealthItems
 			return "";
 
 		return prefabData.GetPrefabName();
+	}
+}
+
+//------------------------------------------------------------------------------------------------
+// Hook directo para salino.
+// SCR_ConsumableSalineBag sobrescribe ApplyEffect y no llama al ApplyEffect base,
+// asi que el hook generico de SCR_ConsumableEffectHealthItems no se ejecuta para salino.
+
+modded class SCR_ConsumableSalineBag
+{
+	override void ApplyEffect(notnull IEntity target, notnull IEntity user, IEntity item, ItemUseParameters animParams)
+	{
+		super.ApplyEffect(target, user, item, animParams);
+
+		if (!Replication.IsServer())
+			return;
+
+		if (!user)
+			return;
+
+		if (!item)
+			return;
+
+		PlayerManager playerManager = GetGame().GetPlayerManager();
+
+		if (!playerManager)
+			return;
+
+		int playerId = playerManager.GetPlayerIdFromControlledEntity(user);
+
+		if (playerId <= 0)
+			return;
+
+		TFR_ORBATLinkService.GetInstance().OnMedicalConsumableUsedByCode(
+			playerId,
+			"SALINE",
+			"SCR_EConsumableType.SALINE",
+			"SCR_ConsumableSalineBag.ApplyEffect"
+		);
+
+		Print(string.Format("[TFR_ORBATLink] Salino registrado. playerId=%1 target=%2 item=%3",
+			playerId,
+			target,
+			item
+		), LogLevel.NORMAL);
 	}
 }
 
