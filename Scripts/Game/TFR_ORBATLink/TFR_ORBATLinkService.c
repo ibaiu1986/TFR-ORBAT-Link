@@ -10,6 +10,8 @@ class TFR_ORBATLinkService
 
 	protected ref map<int, bool> m_mPendingAutoSend;
 	protected ref map<int, int> m_mLastAutoSendMs;
+	protected ref map<int, vector> m_mLastSpeedPositions;
+	protected ref map<int, int> m_mLastSpeedSampleMs;
 
 	protected RestContext m_RestContext;
 
@@ -37,6 +39,8 @@ class TFR_ORBATLinkService
 
 		m_mPendingAutoSend = new map<int, bool>();
 		m_mLastAutoSendMs = new map<int, int>();
+		m_mLastSpeedPositions = new map<int, vector>();
+		m_mLastSpeedSampleMs = new map<int, int>();
 
 		m_bInitialized = false;
 		m_bEnabled = false;
@@ -107,7 +111,7 @@ class TFR_ORBATLinkService
 		if (m_mPlayerStats.Contains(playerId))
 		{
 			RefreshPlayerIdentity(playerId);
-			UpdatePlayerPositionSnapshot(playerId);
+			UpdatePlayerRuntimeSnapshot(playerId);
 			MarkPlayerActiveForVehicleAttribution(playerId);
 			return;
 		}
@@ -125,18 +129,18 @@ class TFR_ORBATLinkService
 		m_mPlayerStats.Insert(playerId, stats);
 
 		RefreshPlayerIdentity(playerId);
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 		MarkPlayerActiveForVehicleAttribution(playerId);
 
 		if (m_Config.m_bDebug)
 		{
-			Print(string.Format("[TFR_ORBATLink] Registrado playerId=%1 name=%2 uid=%3 steamid=%4 scenario_id=%5 scenario_name=%6 map_name=%7",
+			Print(string.Format("[TFR_ORBATLink] Registrado playerId=%1 name=%2 uid=%3 steamid=%4 session_id=%5 preset_id=%6 map_name=%7",
 				playerId,
 				stats.m_sPlayerName,
 				stats.m_sBohemiaUid,
 				stats.m_sSteamId64,
-				stats.m_sScenarioId,
-				stats.m_sScenarioName,
+				m_Config.session_id,
+				m_Config.preset_id,
 				m_Config.m_sMapName
 			), LogLevel.NORMAL);
 		}
@@ -219,16 +223,20 @@ class TFR_ORBATLinkService
 			return;
 
 		RefreshPlayerIdentity(playerId);
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 
-		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
-
-		if (stats && m_Config.m_bSendOnDisconnect)
-			SendPlayerStats(stats, false);
+		if (m_Config.m_bSendOnDisconnect)
+			SendBatchStats(false);
 
 		ClearAutoSendState(playerId);
 
 		m_mPlayerStats.Remove(playerId);
+
+		if (m_mLastSpeedPositions && m_mLastSpeedPositions.Contains(playerId))
+			m_mLastSpeedPositions.Remove(playerId);
+
+		if (m_mLastSpeedSampleMs && m_mLastSpeedSampleMs.Contains(playerId))
+			m_mLastSpeedSampleMs.Remove(playerId);
 	}
 
 	void OnPlayerKilled(int victimPlayerId, IEntity victimEntity, IEntity killerEntity, notnull Instigator killer)
@@ -250,7 +258,10 @@ class TFR_ORBATLinkService
 		TFR_ORBATLinkPlayerStats victimStats = m_mPlayerStats.Get(victimPlayerId);
 
 		if (victimStats)
+		{
 			victimStats.m_iDeaths++;
+			victimStats.m_bIsAlive = false;
+		}
 
 		int killerPlayerId = ResolveKillerPlayerId(killerEntity, killer);
 
@@ -270,7 +281,7 @@ class TFR_ORBATLinkService
 			OnPlayerRegistered(killerPlayerId);
 
 		RefreshPlayerIdentity(killerPlayerId);
-		UpdatePlayerPositionSnapshot(killerPlayerId);
+		UpdatePlayerRuntimeSnapshot(killerPlayerId);
 
 		TFR_ORBATLinkPlayerStats killerStats = m_mPlayerStats.Get(killerPlayerId);
 
@@ -313,7 +324,7 @@ class TFR_ORBATLinkService
 			OnPlayerRegistered(killerPlayerId);
 
 		RefreshPlayerIdentity(killerPlayerId);
-		UpdatePlayerPositionSnapshot(killerPlayerId);
+		UpdatePlayerRuntimeSnapshot(killerPlayerId);
 
 		TFR_ORBATLinkPlayerStats killerStats = m_mPlayerStats.Get(killerPlayerId);
 
@@ -453,15 +464,6 @@ class TFR_ORBATLinkService
 		stats.m_iDistanceWalkedM += meters;
 
 		MarkPlayerActiveForVehicleAttribution(playerId);
-
-		if (m_Config && m_Config.m_bDebug)
-		{
-			Print(string.Format("[TFR_ORBATLink] Distancia a pie registrada. playerId=%1 meters=%2 total_walked=%3",
-				playerId,
-				meters,
-				stats.m_iDistanceWalkedM
-			), LogLevel.NORMAL);
-		}
 	}
 
 	void OnDistanceInVehicle(int playerId, int meters)
@@ -491,15 +493,6 @@ class TFR_ORBATLinkService
 		stats.m_iDistanceInVehicleM += meters;
 
 		MarkPlayerActiveForVehicleAttribution(playerId);
-
-		if (m_Config && m_Config.m_bDebug)
-		{
-			Print(string.Format("[TFR_ORBATLink] Distancia en vehiculo registrada. playerId=%1 meters=%2 total_vehicle=%3",
-				playerId,
-				meters,
-				stats.m_iDistanceInVehicleM
-			), LogLevel.NORMAL);
-		}
 	}
 
 	void OnVehicleDestroyed(int playerId, string vehicleCategory)
@@ -519,7 +512,7 @@ class TFR_ORBATLinkService
 			OnPlayerRegistered(playerId);
 
 		RefreshPlayerIdentity(playerId);
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 
 		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
 
@@ -541,15 +534,6 @@ class TFR_ORBATLinkService
 
 		MarkPlayerActiveForVehicleAttribution(playerId);
 		ScheduleAutoSend(playerId);
-
-		if (m_Config && m_Config.m_bDebug)
-		{
-			Print(string.Format("[TFR_ORBATLink] Vehiculo destruido registrado. playerId=%1 category=%2 total=%3",
-				playerId,
-				vehicleCategory,
-				stats.m_iVehiclesDestroyedTotal
-			), LogLevel.NORMAL);
-		}
 	}
 
 	void OnPlacedExplosiveDetonated(int playerId)
@@ -568,7 +552,7 @@ class TFR_ORBATLinkService
 		if (!m_mPlayerStats.Contains(playerId))
 			OnPlayerRegistered(playerId);
 
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 
 		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
 
@@ -579,14 +563,6 @@ class TFR_ORBATLinkService
 
 		MarkPlayerActiveForVehicleAttribution(playerId);
 		ScheduleAutoSend(playerId);
-
-		if (m_Config && m_Config.m_bDebug)
-		{
-			Print(string.Format("[TFR_ORBATLink] Explosivo colocado detonado registrado. playerId=%1 total=%2",
-				playerId,
-				stats.m_iPlacedExplosivesDetonated
-			), LogLevel.NORMAL);
-		}
 	}
 
 	void OnMedicalConsumableUsed(int playerId, SCR_EConsumableType typeId)
@@ -609,17 +585,12 @@ class TFR_ORBATLinkService
 			return;
 
 		if (medicalCode.IsEmpty())
-		{
-			if (m_Config && m_Config.m_bDebug)
-				Print("[TFR_ORBATLink] Consumible medico no registrado type=" + typeName + " effect=" + effectTypeName, LogLevel.WARNING);
-
 			return;
-		}
 
 		if (!m_mPlayerStats.Contains(playerId))
 			OnPlayerRegistered(playerId);
 
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 
 		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
 
@@ -634,12 +605,7 @@ class TFR_ORBATLinkService
 			int lastTime = m_mRecentMedicalEvents.Get(dedupeKey);
 
 			if (now - lastTime < 3000)
-			{
-				if (m_Config && m_Config.m_bDebug)
-					Print("[TFR_ORBATLink] Accion medica duplicada ignorada. key=" + dedupeKey, LogLevel.NORMAL);
-
 				return;
-			}
 		}
 
 		if (m_mRecentMedicalEvents)
@@ -661,25 +627,10 @@ class TFR_ORBATLinkService
 		else if (medicalCode == "EPINEPHRINE")
 			stats.m_iMedicalEpinephrineApplied++;
 		else
-		{
-			if (m_Config && m_Config.m_bDebug)
-				Print("[TFR_ORBATLink] Medical code no reconocido code=" + medicalCode + " type=" + typeName + " effect=" + effectTypeName, LogLevel.WARNING);
-
 			return;
-		}
 
 		MarkPlayerActiveForVehicleAttribution(playerId);
 		ScheduleAutoSend(playerId);
-
-		if (m_Config && m_Config.m_bDebug)
-		{
-			Print(string.Format("[TFR_ORBATLink] Accion medica registrada. playerId=%1 code=%2 type=%3 effect=%4",
-				playerId,
-				medicalCode,
-				typeName,
-				effectTypeName
-			), LogLevel.NORMAL);
-		}
 	}
 
 	protected string ResolveMedicalCodeFromType(SCR_EConsumableType typeId)
@@ -716,7 +667,7 @@ class TFR_ORBATLinkService
 		return "";
 	}
 
-	protected void UpdatePlayerPositionSnapshot(int playerId)
+	protected void UpdatePlayerRuntimeSnapshot(int playerId)
 	{
 		if (!Replication.IsServer())
 			return;
@@ -740,14 +691,20 @@ class TFR_ORBATLinkService
 		IEntity controlledEntity = playerManager.GetPlayerControlledEntity(playerId);
 
 		if (!controlledEntity)
+		{
+			stats.m_bIsAlive = false;
+			stats.m_fSpeedKmh = 0.0;
 			return;
+		}
 
 		vector origin = controlledEntity.GetOrigin();
 
-		stats.m_iEjex = Math.Round(origin[0]);
+		stats.m_fPosX = origin[0];
+		stats.m_fPosY = origin[1];
+		stats.m_fPosZ = origin[2];
 
-		// En Enfusion la coordenada vertical es Y.
-		// Para grid 2D de mapa usamos X/Z.
+		// Legacy 2D map coordinates.
+		stats.m_iEjex = Math.Round(origin[0]);
 		stats.m_iEjey = Math.Round(origin[2]);
 
 		vector angles = controlledEntity.GetAngles();
@@ -767,7 +724,121 @@ class TFR_ORBATLinkService
 		if (dir < 0)
 			dir = 0;
 
+		stats.m_fHeading = dir;
 		stats.m_iDir = dir;
+
+		stats.m_fSpeedKmh = CalculateSpeedKmh(playerId, origin);
+		stats.m_bIsAlive = ResolveIsAlive(controlledEntity);
+		stats.m_sFaction = ResolvePlayerFaction(playerId, controlledEntity);
+		stats.m_sSquad = ResolvePlayerSquad(playerId);
+		stats.m_sRole = ResolvePlayerRole(controlledEntity);
+	}
+
+	protected float CalculateSpeedKmh(int playerId, vector currentPos)
+	{
+		if (!m_mLastSpeedPositions)
+			m_mLastSpeedPositions = new map<int, vector>();
+
+		if (!m_mLastSpeedSampleMs)
+			m_mLastSpeedSampleMs = new map<int, int>();
+
+		int now = System.GetTickCount();
+		float speedKmh = 0.0;
+
+		if (m_mLastSpeedPositions.Contains(playerId) && m_mLastSpeedSampleMs.Contains(playerId))
+		{
+			vector lastPos = m_mLastSpeedPositions.Get(playerId);
+			int lastMs = m_mLastSpeedSampleMs.Get(playerId);
+			int elapsedMs = now - lastMs;
+
+			if (elapsedMs > 0)
+			{
+				float distanceM = vector.Distance(lastPos, currentPos);
+				float seconds = elapsedMs / 1000.0;
+				speedKmh = (distanceM / seconds) * 3.6;
+			}
+		}
+
+		if (m_mLastSpeedPositions.Contains(playerId))
+			m_mLastSpeedPositions.Remove(playerId);
+
+		if (m_mLastSpeedSampleMs.Contains(playerId))
+			m_mLastSpeedSampleMs.Remove(playerId);
+
+		m_mLastSpeedPositions.Insert(playerId, currentPos);
+		m_mLastSpeedSampleMs.Insert(playerId, now);
+
+		if (speedKmh < 0.0)
+			speedKmh = 0.0;
+
+		if (speedKmh > 300.0)
+			speedKmh = 0.0;
+
+		return speedKmh;
+	}
+
+	protected bool ResolveIsAlive(IEntity controlledEntity)
+	{
+		if (!controlledEntity)
+			return false;
+
+		SCR_DamageManagerComponent damageManager = SCR_DamageManagerComponent.Cast(controlledEntity.FindComponent(SCR_DamageManagerComponent));
+
+		if (!damageManager)
+			return true;
+
+		return damageManager.GetState() != EDamageState.DESTROYED;
+	}
+
+	protected string ResolvePlayerFaction(int playerId, IEntity controlledEntity)
+	{
+		SCR_FactionManager factionManager = SCR_FactionManager.Cast(GetGame().GetFactionManager());
+
+		if (factionManager)
+		{
+			Faction playerFaction = factionManager.GetPlayerFaction(playerId);
+
+			if (playerFaction)
+				return playerFaction.GetFactionKey();
+		}
+
+		if (controlledEntity)
+		{
+			FactionAffiliationComponent factionComponent = FactionAffiliationComponent.Cast(controlledEntity.FindComponent(FactionAffiliationComponent));
+
+			if (factionComponent)
+			{
+				Faction entityFaction = factionComponent.GetAffiliatedFaction();
+
+				if (entityFaction)
+					return entityFaction.GetFactionKey();
+			}
+		}
+
+		return "unknown";
+	}
+
+	protected string ResolvePlayerSquad(int playerId)
+	{
+		// Pendiente de conectar con el sistema real de grupos/ORBAT.
+		return "";
+	}
+
+	protected string ResolvePlayerRole(IEntity controlledEntity)
+	{
+		if (!controlledEntity)
+			return "";
+
+		EntityPrefabData prefabData = controlledEntity.GetPrefabData();
+
+		if (!prefabData)
+			return "";
+
+		string prefabName = prefabData.GetPrefabName();
+		prefabName.Replace(".et", "");
+		prefabName.Replace(".conf", "");
+
+		return prefabName;
 	}
 
 	protected void MarkPlayerActiveForVehicleAttribution(int playerId)
@@ -836,17 +907,9 @@ class TFR_ORBATLinkService
 			return;
 
 		RefreshPlayerIdentity(playerId);
-		UpdatePlayerPositionSnapshot(playerId);
+		UpdatePlayerRuntimeSnapshot(playerId);
 
-		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
-
-		if (!stats)
-			return;
-
-		if (!stats.HasAnyStats())
-			return;
-
-		SendPlayerStats(stats, true);
+		SendBatchStats(true);
 
 		if (!m_mLastAutoSendMs)
 			m_mLastAutoSendMs = new map<int, int>();
@@ -944,16 +1007,11 @@ class TFR_ORBATLinkService
 		}
 
 		RefreshPlayerIdentity(playerId);
-		UpdatePlayerPositionSnapshot(playerId);
-
-		TFR_ORBATLinkPlayerStats stats = m_mPlayerStats.Get(playerId);
-
-		if (!stats)
-			return;
+		UpdatePlayerRuntimeSnapshot(playerId);
 
 		Print("[TFR_ORBATLink] TEST POST ejecutando para playerId=" + playerId.ToString(), LogLevel.WARNING);
 
-		SendPlayerStats(stats, true);
+		SendBatchStats(true);
 	}
 
 	protected bool IsFriendlyFire(int killerPlayerId, IEntity victimEntity)
@@ -1008,44 +1066,45 @@ class TFR_ORBATLinkService
 		return result;
 	}
 
-	protected void SendPlayerStats(TFR_ORBATLinkPlayerStats stats, bool resetAfterSend)
+	protected string JsonInt(string key, int value, bool comma = true)
 	{
-		if (!stats)
-			return;
+		string result = "\"" + key + "\":" + value.ToString();
 
-		RefreshPlayerIdentity(stats.m_iPlayerId);
-		UpdatePlayerPositionSnapshot(stats.m_iPlayerId);
+		if (comma)
+			result += ",";
 
-		stats.m_sScenarioId = m_Config.m_sScenarioId;
-		stats.m_sScenarioName = m_Config.m_sScenarioName;
-
-		string payload = "{";
-		payload += JsonString("token", m_Config.m_sBearerToken, true);
-		payload += JsonString("scenario_id", m_Config.m_sScenarioId, true);
-		payload += JsonString("scenario_name", m_Config.m_sScenarioName, true);
-		payload += JsonString("map_name", m_Config.m_sMapName, true);
-		payload += "\"players\":[";
-		payload += stats.ToPlayerJson();
-		payload += "]}";
-
-		SendPayload(payload);
-
-		if (resetAfterSend)
-			stats.ResetPeriod();
+		return result;
 	}
 
 	protected void SendBatchStats(bool resetAfterSend)
 	{
+		string payload = BuildORBATPayload();
+
+		if (payload.IsEmpty())
+			return;
+
+		SendPayload(payload);
+
+		if (resetAfterSend)
+		{
+			foreach (int playerId, TFR_ORBATLinkPlayerStats stats : m_mPlayerStats)
+			{
+				if (stats)
+					stats.ResetPeriod();
+			}
+		}
+	}
+
+	protected string BuildORBATPayload()
+	{
 		string payload = "{";
 
-		payload += JsonString("token", m_Config.m_sBearerToken, true);
-		payload += JsonString("scenario_id", m_Config.m_sScenarioId, true);
-		payload += JsonString("scenario_name", m_Config.m_sScenarioName, true);
+		payload += JsonString("session_id", m_Config.session_id, true);
+		payload += JsonInt("preset_id", m_Config.preset_id, true);
 		payload += JsonString("map_name", m_Config.m_sMapName, true);
 		payload += "\"players\":[";
 
 		bool first = true;
-		ref array<ref TFR_ORBATLinkPlayerStats> sentStats = new array<ref TFR_ORBATLinkPlayerStats>();
 
 		foreach (int playerId, TFR_ORBATLinkPlayerStats stats : m_mPlayerStats)
 		{
@@ -1053,39 +1112,20 @@ class TFR_ORBATLinkService
 				continue;
 
 			RefreshPlayerIdentity(playerId);
-			UpdatePlayerPositionSnapshot(playerId);
-
-			if (!stats.HasAnyStats())
-				continue;
+			UpdatePlayerRuntimeSnapshot(playerId);
 
 			if (!first)
 				payload += ",";
 
 			payload += stats.ToPlayerJson();
-			sentStats.Insert(stats);
 			first = false;
 		}
 
-		payload += "]}";
+		payload += "],";
+		payload += "\"markers\":[]";
+		payload += "}";
 
-		if (first)
-		{
-			if (m_Config && m_Config.m_bDebug)
-				Print("[TFR_ORBATLink] No hay datos periodicos para enviar.", LogLevel.NORMAL);
-
-			return;
-		}
-
-		SendPayload(payload);
-
-		if (resetAfterSend)
-		{
-			foreach (TFR_ORBATLinkPlayerStats sentStat : sentStats)
-			{
-				if (sentStat)
-					sentStat.ResetPeriod();
-			}
-		}
+		return payload;
 	}
 
 	protected void SendPayload(string payload)
