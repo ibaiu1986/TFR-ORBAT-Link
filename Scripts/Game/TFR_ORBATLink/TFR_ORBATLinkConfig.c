@@ -106,9 +106,21 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 			return false;
 		}
 
+		if (m_sBearerToken == "TU_TOKEN_REAL" || m_sBearerToken == "TFR_TOKEN_REAL_AQUI")
+		{
+			Print("[TFR_ORBATLink] Config invalida: m_sBearerToken contiene un placeholder, no el token real.", LogLevel.ERROR);
+			return false;
+		}
+
 		if (session_id.IsEmpty())
 		{
 			Print("[TFR_ORBATLink] Config invalida: session_id vacio", LogLevel.ERROR);
+			return false;
+		}
+
+		if (session_id == "TU_SESSION_ID_REAL" || session_id == "SESSION_REAL_AQUI" || session_id == "AQUI_EL_SESSION_ID_REAL")
+		{
+			Print("[TFR_ORBATLink] Config invalida: session_id contiene un placeholder, no la session real.", LogLevel.ERROR);
 			return false;
 		}
 
