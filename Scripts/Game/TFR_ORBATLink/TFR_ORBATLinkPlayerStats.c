@@ -277,7 +277,9 @@ class TFR_ORBATLinkPlayerStats
 
 		string json = "{";
 
+		// Identidad y ORBAT vivo.
 		json += JsonStringField("steamid", steamId);
+		json += JsonStringField("bohemia_uid", m_sBohemiaUid);
 		json += JsonStringField("name", m_sPlayerName);
 		json += JsonStringField("faction", m_sFaction);
 		json += JsonStringField("squad", m_sSquad);
@@ -287,7 +289,40 @@ class TFR_ORBATLinkPlayerStats
 		json += JsonFloatField("pos_z", m_fPosZ);
 		json += JsonFloatField("heading", m_fHeading);
 		json += JsonFloatField("speed_kmh", m_fSpeedKmh);
-		json += JsonBoolField("is_alive", m_bIsAlive, false);
+		json += JsonBoolField("is_alive", m_bIsAlive);
+
+		// Dossier de combate del operador. Se mantiene todo lo que ya usaba la web.
+		// missions_played se omite porque lo gestiona otro sistema.
+		json += JsonIntField("kills", m_iKills);
+		json += JsonIntField("deaths", m_iDeaths);
+		json += JsonIntField("friendly_fire", m_iFriendlyFire);
+		json += JsonIntField("shots_fired", m_iShotsFired);
+		json += JsonIntField("shots_hit", m_iShotsHit);
+		json += JsonIntField("playtime_minutes", GetPeriodMinutes());
+
+		json += JsonIntField("medical_bandages_applied", m_iMedicalBandagesApplied);
+		json += JsonIntField("medical_tourniquets_applied", m_iMedicalTourniquetsApplied);
+		json += JsonIntField("medical_saline_applied", m_iMedicalSalineApplied);
+		json += JsonIntField("medical_morphine_applied", m_iMedicalMorphineApplied);
+		json += JsonIntField("medical_epinephrine_applied", m_iMedicalEpinephrineApplied);
+
+		json += JsonIntField("distance_walked_m", m_iDistanceWalkedM);
+		json += JsonIntField("distance_in_vehicle_m", m_iDistanceInVehicleM);
+		json += JsonIntField("distance_total_m", GetDistanceTotalM());
+
+		json += JsonIntField("vehicles_destroyed_total", m_iVehiclesDestroyedTotal);
+		json += JsonIntField("vehicles_destroyed_light", m_iVehiclesDestroyedLight);
+		json += JsonIntField("vehicles_destroyed_heavy", m_iVehiclesDestroyedHeavy);
+		json += JsonIntField("vehicles_destroyed_air", m_iVehiclesDestroyedAir);
+		json += JsonIntField("vehicles_destroyed_sea", m_iVehiclesDestroyedSea);
+		json += JsonIntField("vehicles_destroyed_static", m_iVehiclesDestroyedStatic);
+
+		json += JsonIntField("placed_explosives_detonated", m_iPlacedExplosivesDetonated);
+
+		// Campos legacy que ya existian para mapa/compatibilidad.
+		json += JsonIntField("Ejex", m_iEjex);
+		json += JsonIntField("Ejey", m_iEjey);
+		json += JsonIntField("Dir", m_iDir, false);
 
 		json += "}";
 
