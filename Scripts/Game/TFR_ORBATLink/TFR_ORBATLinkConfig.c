@@ -2,22 +2,18 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 {
 	string m_sBaseUrl;
 	string m_sRoute;
-
-	// Opcional. Se conserva para futuros endpoints con auth, pero ya no es obligatorio
-	// ni se envia dentro del payload ORBAT nuevo.
 	string m_sBearerToken;
 
-	// Contrato ORBAT externo. Estos campos salen de config.json y se envian como:
-	// "session_id" y "preset_id".
+	// Nuevo contrato ORBAT externo.
 	string session_id;
 	int preset_id;
 
-	// Internos. Se resuelven automaticamente al iniciar.
+	// Legacy / escenario.
+	string m_sMissionId;
 	string m_sScenarioId;
 	string m_sScenarioName;
 
 	// Configuracion manual de mapa.
-	// m_iPreformedMapId NO se envia en payload. Se conserva solo como valor local/configurable.
 	int m_iPreformedMapId;
 	string m_sMapName;
 
@@ -40,6 +36,7 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 		session_id = "";
 		preset_id = 0;
 
+		m_sMissionId = "";
 		m_sScenarioId = "unknown";
 		m_sScenarioName = "TFR ORBAT";
 
@@ -63,8 +60,10 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 		RegV("session_id");
 		RegV("preset_id");
 
-		// Se registran para que puedan existir en config.json.
-		// m_iPreformedMapId no se envia al payload.
+		RegV("m_sMissionId");
+		RegV("m_sScenarioId");
+		RegV("m_sScenarioName");
+
 		RegV("m_iPreformedMapId");
 		RegV("m_sMapName");
 
@@ -101,6 +100,12 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 			return false;
 		}
 
+		if (m_sBearerToken.IsEmpty())
+		{
+			Print("[TFR_ORBATLink] Config invalida: m_sBearerToken vacio", LogLevel.ERROR);
+			return false;
+		}
+
 		if (session_id.IsEmpty())
 		{
 			Print("[TFR_ORBATLink] Config invalida: session_id vacio", LogLevel.ERROR);
@@ -133,16 +138,16 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 
 		if (m_bDebug)
 		{
-			Print(string.Format("[TFR_ORBATLink] Config cargada. baseUrl=%1 route=%2 session_id=%3 preset_id=%4 scenario_id=%5 scenario_name=%6 map_name=%7 preformedMapId=%8 bearerTokenSet=%9",
+			Print(string.Format("[TFR_ORBATLink] Config cargada. baseUrl=%1 route=%2 tokenSet=%3 session_id=%4 preset_id=%5 scenario_id=%6 scenario_name=%7 map_name=%8 preformedMapId=%9",
 				m_sBaseUrl,
 				m_sRoute,
+				!m_sBearerToken.IsEmpty(),
 				session_id,
 				preset_id,
 				m_sScenarioId,
 				m_sScenarioName,
 				m_sMapName,
-				m_iPreformedMapId,
-				!m_sBearerToken.IsEmpty()
+				m_iPreformedMapId
 			), LogLevel.NORMAL);
 		}
 
