@@ -2,7 +2,15 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 {
 	string m_sBaseUrl;
 	string m_sRoute;
+
+	// Opcional. Se conserva para futuros endpoints con auth, pero ya no es obligatorio
+	// ni se envia dentro del payload ORBAT nuevo.
 	string m_sBearerToken;
+
+	// Contrato ORBAT externo. Estos campos salen de config.json y se envian como:
+	// "session_id" y "preset_id".
+	string session_id;
+	int preset_id;
 
 	// Internos. Se resuelven automaticamente al iniciar.
 	string m_sScenarioId;
@@ -29,6 +37,9 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 		m_sRoute = "/wp-json/clan/v1/telemetry/push";
 		m_sBearerToken = "";
 
+		session_id = "";
+		preset_id = 0;
+
 		m_sScenarioId = "unknown";
 		m_sScenarioName = "TFR ORBAT";
 
@@ -48,6 +59,9 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 		RegV("m_sBaseUrl");
 		RegV("m_sRoute");
 		RegV("m_sBearerToken");
+
+		RegV("session_id");
+		RegV("preset_id");
 
 		// Se registran para que puedan existir en config.json.
 		// m_iPreformedMapId no se envia al payload.
@@ -87,9 +101,15 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 			return false;
 		}
 
-		if (m_sBearerToken.IsEmpty())
+		if (session_id.IsEmpty())
 		{
-			Print("[TFR_ORBATLink] Config invalida: m_sBearerToken vacio", LogLevel.ERROR);
+			Print("[TFR_ORBATLink] Config invalida: session_id vacio", LogLevel.ERROR);
+			return false;
+		}
+
+		if (preset_id < 0)
+		{
+			Print("[TFR_ORBATLink] Config invalida: preset_id no puede ser negativo", LogLevel.ERROR);
 			return false;
 		}
 
@@ -113,13 +133,16 @@ class TFR_ORBATLinkConfig : JsonApiStruct
 
 		if (m_bDebug)
 		{
-			Print(string.Format("[TFR_ORBATLink] Config cargada. baseUrl=%1 route=%2 scenario_id=%3 scenario_name=%4 map_name=%5 preformedMapId=%6",
+			Print(string.Format("[TFR_ORBATLink] Config cargada. baseUrl=%1 route=%2 session_id=%3 preset_id=%4 scenario_id=%5 scenario_name=%6 map_name=%7 preformedMapId=%8 bearerTokenSet=%9",
 				m_sBaseUrl,
 				m_sRoute,
+				session_id,
+				preset_id,
 				m_sScenarioId,
 				m_sScenarioName,
 				m_sMapName,
-				m_iPreformedMapId
+				m_iPreformedMapId,
+				!m_sBearerToken.IsEmpty()
 			), LogLevel.NORMAL);
 		}
 
