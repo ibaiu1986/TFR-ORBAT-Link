@@ -4,11 +4,10 @@
 //
 // Criterio TFR:
 // - No toca CanBePerformed.
-// - No toca PerformAction.
 // - No bloquea acciones medicas.
 // - Cuenta consumibles cuando el efecto ya se ha aplicado.
-// - Salino se cuenta desde SCR_ConsumableSalineBag.ApplyEffect porque esa clase
-//   sobrescribe ApplyEffect y no llama al ApplyEffect base de SCR_ConsumableEffectHealthItems.
+// - Salino se cuenta desde SCR_SalineStorageComponent.AddSalineBagToSlot,
+//   despues de que vanilla confirme que la bolsa se ha colocado.
 // - Torniquete NO se cuenta desde SCR_ConsumableTourniquet directamente.
 // - Torniquete se cuenta desde SCR_TourniquetStorageComponent.OnAddedToSlot,
 //   que confirma que el torniquete ha quedado colocado.
@@ -50,7 +49,7 @@ modded class SCR_ConsumableEffectHealthItems
 			return;
 		}
 
-		// El salino tiene hook propio porque SCR_ConsumableSalineBag sobrescribe ApplyEffect.
+		// El salino se cuenta por SCR_SalineStorageComponent.AddSalineBagToSlot.
 		if (medicalCode == "SALINE")
 			return;
 
@@ -213,47 +212,69 @@ modded class SCR_ConsumableEffectHealthItems
 }
 
 //------------------------------------------------------------------------------------------------
-// Hook directo para salino.
-// SCR_ConsumableSalineBag sobrescribe ApplyEffect y no llama al ApplyEffect base,
-// asi que el hook generico de SCR_ConsumableEffectHealthItems no se ejecuta para salino.
+// Hook seguro de salino.
+// Cuenta solo cuando vanilla confirma que AddSalineBagToSlot ha devuelto true.
+// No toca SCR_ConsumableSalineBag.ApplyEffect ni CanApplyEffect.
 
-modded class SCR_ConsumableSalineBag
+modded class SCR_SalineStorageComponent
 {
-	override void ApplyEffect(notnull IEntity target, notnull IEntity user, IEntity item, ItemUseParameters animParams)
+	override bool AddSalineBagToSlot(IEntity target, ECharacterHitZoneGroup eHitZoneGroup, IEntity salineBag, float itemRegenerationDuration)
 	{
-		super.ApplyEffect(target, user, item, animParams);
+		bool applied = super.AddSalineBagToSlot(target, eHitZoneGroup, salineBag, itemRegenerationDuration);
+
+		if (!applied)
+			return applied;
 
 		if (!Replication.IsServer())
-			return;
+			return applied;
 
-		if (!user)
-			return;
-
-		if (!item)
-			return;
-
-		PlayerManager playerManager = GetGame().GetPlayerManager();
-
-		if (!playerManager)
-			return;
-
-		int playerId = playerManager.GetPlayerIdFromControlledEntity(user);
+		int playerId = TFR_ORBATLink_ResolveSalineApplier(target);
 
 		if (playerId <= 0)
-			return;
+			return applied;
 
 		TFR_ORBATLinkService.GetInstance().OnMedicalConsumableUsedByCode(
 			playerId,
 			"SALINE",
 			"SCR_EConsumableType.SALINE",
-			"SCR_ConsumableSalineBag.ApplyEffect"
+			"SCR_SalineStorageComponent.AddSalineBagToSlot"
 		);
 
-		Print(string.Format("[TFR_ORBATLink] Salino registrado. playerId=%1 target=%2 item=%3",
+		Print(string.Format("[TFR_ORBATLink] Salino colocado registrado. playerId=%1 target=%2 item=%3",
 			playerId,
 			target,
-			item
+			salineBag
 		), LogLevel.NORMAL);
+
+		return applied;
+	}
+
+	protected int TFR_ORBATLink_ResolveSalineApplier(IEntity target)
+	{
+		PlayerManager playerManager = GetGame().GetPlayerManager();
+
+		if (!playerManager)
+			return 0;
+
+		IEntity owner = GetOwner();
+
+		if (owner)
+		{
+			int ownerPlayerId = playerManager.GetPlayerIdFromControlledEntity(owner);
+
+			if (ownerPlayerId > 0)
+				return ownerPlayerId;
+		}
+
+		if (target)
+		{
+			int targetPlayerId = playerManager.GetPlayerIdFromControlledEntity(target);
+
+			if (targetPlayerId > 0)
+				return targetPlayerId;
+		}
+
+		return 0;
 	}
 }
 
