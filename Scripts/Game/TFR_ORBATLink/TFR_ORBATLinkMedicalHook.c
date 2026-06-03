@@ -36,7 +36,17 @@ modded class SCR_ConsumableEffectHealthItems
 		string medicalCode = TFR_ORBATLink_ResolveMedicalCode(typeId);
 
 		if (medicalCode.IsEmpty())
+			medicalCode = TFR_ORBATLink_ResolveMedicalCodeFromItem(item, typeId);
+
+		if (medicalCode.IsEmpty())
+		{
+			Print(string.Format("[TFR_ORBATLink] Consumible medico aplicado pero no clasificado. type=%1 item=%2 prefab=%3",
+				typeId.ToString(),
+				item,
+				TFR_ORBATLink_GetItemPrefabName(item)
+			), LogLevel.WARNING);
 			return;
+		}
 
 		// El torniquete se cuenta por SCR_TourniquetStorageComponent.OnAddedToSlot.
 		if (medicalCode == "TOURNIQUET")
@@ -58,6 +68,14 @@ modded class SCR_ConsumableEffectHealthItems
 			typeId.ToString(),
 			"SCR_ConsumableEffectHealthItems"
 		);
+
+		Print(string.Format("[TFR_ORBATLink] Consumible medico registrado. playerId=%1 code=%2 type=%3 item=%4 prefab=%5",
+			playerId,
+			medicalCode,
+			typeId.ToString(),
+			item,
+			TFR_ORBATLink_GetItemPrefabName(item)
+		), LogLevel.NORMAL);
 	}
 
 	protected string TFR_ORBATLink_ResolveMedicalCode(SCR_EConsumableType typeId)
@@ -92,6 +110,99 @@ modded class SCR_ConsumableEffectHealthItems
 			return "EPINEPHRINE";
 
 		return "";
+	}
+
+	protected string TFR_ORBATLink_ResolveMedicalCodeFromItem(IEntity item, SCR_EConsumableType typeId)
+	{
+		string typeName = typeId.ToString();
+		string prefabName = TFR_ORBATLink_GetItemPrefabName(item);
+		string itemName = "";
+
+		if (item)
+			itemName = item.ToString();
+
+		if (TFR_ORBATLink_TextLooksLikeSaline(typeName))
+			return "SALINE";
+
+		if (TFR_ORBATLink_TextLooksLikeSaline(prefabName))
+			return "SALINE";
+
+		if (TFR_ORBATLink_TextLooksLikeSaline(itemName))
+			return "SALINE";
+
+		if (typeName.Contains("BANDAGE") || prefabName.Contains("Bandage") || prefabName.Contains("bandage"))
+			return "BANDAGE";
+
+		if (typeName.Contains("TOURNIQUET") || prefabName.Contains("Tourniquet") || prefabName.Contains("tourniquet"))
+			return "TOURNIQUET";
+
+		if (typeName.Contains("MORPHINE") || prefabName.Contains("Morphine") || prefabName.Contains("morphine"))
+			return "MORPHINE";
+
+		if (typeName.Contains("EPINEPHRINE") || prefabName.Contains("Epinephrine") || prefabName.Contains("epinephrine") || prefabName.Contains("EpiPen"))
+			return "EPINEPHRINE";
+
+		return "";
+	}
+
+	protected bool TFR_ORBATLink_TextLooksLikeSaline(string text)
+	{
+		if (text.IsEmpty())
+			return false;
+
+		if (text.Contains("SALINE"))
+			return true;
+
+		if (text.Contains("Saline"))
+			return true;
+
+		if (text.Contains("saline"))
+			return true;
+
+		if (text.Contains("SODIUM"))
+			return true;
+
+		if (text.Contains("Sodium"))
+			return true;
+
+		if (text.Contains("sodium"))
+			return true;
+
+		if (text.Contains("NACL"))
+			return true;
+
+		if (text.Contains("NaCl"))
+			return true;
+
+		if (text.Contains("nacl"))
+			return true;
+
+		if (text.Contains("IVBag"))
+			return true;
+
+		if (text.Contains("IV_Bag"))
+			return true;
+
+		if (text.Contains("Infusion"))
+			return true;
+
+		if (text.Contains("infusion"))
+			return true;
+
+		return false;
+	}
+
+	protected string TFR_ORBATLink_GetItemPrefabName(IEntity item)
+	{
+		if (!item)
+			return "";
+
+		EntityPrefabData prefabData = item.GetPrefabData();
+
+		if (!prefabData)
+			return "";
+
+		return prefabData.GetPrefabName();
 	}
 }
 
