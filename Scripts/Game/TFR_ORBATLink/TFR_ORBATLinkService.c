@@ -706,15 +706,7 @@ class TFR_ORBATLinkService
 		stats.m_iEjex = Math.Round(origin[0]);
 		stats.m_iEjey = Math.Round(origin[2]);
 
-		vector angles = controlledEntity.GetAngles();
-		float yaw = angles[0];
-
-		while (yaw < 0)
-			yaw += 360.0;
-
-		while (yaw >= 360.0)
-			yaw -= 360.0;
-
+		float yaw = ResolveEntityHeading(controlledEntity);
 		int dir = Math.Round(yaw);
 
 		if (dir >= 360)
@@ -731,6 +723,42 @@ class TFR_ORBATLinkService
 		stats.m_sFaction = ResolvePlayerFaction(playerId, controlledEntity);
 		stats.m_sSquad = ResolvePlayerSquad(playerId);
 		stats.m_sRole = ResolvePlayerRole(controlledEntity);
+	}
+
+	protected float ResolveEntityHeading(IEntity entity)
+	{
+		if (!entity)
+			return 0.0;
+
+		vector transform[4];
+		entity.GetTransform(transform);
+
+		vector forward = transform[2];
+
+		if (forward.Length() <= 0.001)
+		{
+			vector fallbackAngles = entity.GetAngles();
+			float fallbackYaw = fallbackAngles[0];
+
+			while (fallbackYaw < 0.0)
+				fallbackYaw += 360.0;
+
+			while (fallbackYaw >= 360.0)
+				fallbackYaw -= 360.0;
+
+			return fallbackYaw;
+		}
+
+		vector forwardAngles = forward.VectorToAngles();
+		float yaw = forwardAngles[0];
+
+		while (yaw < 0.0)
+			yaw += 360.0;
+
+		while (yaw >= 360.0)
+			yaw -= 360.0;
+
+		return yaw;
 	}
 
 	protected float CalculateSpeedKmh(int playerId, vector currentPos)
